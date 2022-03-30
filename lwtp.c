@@ -39,6 +39,13 @@ void* _worker(void* pool_p) {
         pthread_mutex_lock(&(pool->mutex));
 
         pool->ready--;
+
+        if(!pool->job) {
+            // someone already took the job and beat us to it
+            pthread_mutex_unlock(&(pool->mutex));
+            continue;
+        }
+
         pool->count++;
 
         job = pool->job;
@@ -47,12 +54,6 @@ void* _worker(void* pool_p) {
         pool->job = NULL;
 
         pthread_mutex_unlock(&(pool->mutex));
-
-        if(job == NULL) {
-            // we were awoken, but someone beat us to take the job
-            // TODO make this not happen?
-            continue;
-        }
 
         // execute the job
         job(arg);
@@ -65,7 +66,6 @@ void* _worker(void* pool_p) {
 
 int lwtp_start(lwt_pool_t* pool, job_handler_t job, void* arg) {
     pthread_mutex_lock(&(pool->mutex));
-    printf("ready: %i\n", pool->ready);
     if(!pool->ready) {
         // no workers available yet
         pthread_mutex_unlock(&(pool->mutex));
