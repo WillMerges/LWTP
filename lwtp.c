@@ -1,7 +1,11 @@
+#include <stdatomic.h>
+#include <signal.h>
+
 #define LWTP_C
 
 typedef struct {
     pthread_t* threads;
+    int num_threads;
     _Atomic (int) count;
     pthread_mutex_t mutex;
     pthread_cond_t cond;
@@ -11,7 +15,6 @@ typedef struct {
 } lwt_pool_t;
 
 #include "lwtp.h"
-#include <stdatomic.h>
 
 
 // executed by each worker
@@ -82,7 +85,7 @@ void lwtp_wait_count(lwt_pool_t* pool, int count) {
     while(pool->count >= count) {};
 }
 
-int lwtp_create(lwt_pool_t* pool, uint32_t num_threads) {
+int lwtp_create(lwt_pool_t* pool, int num_threads) {
     if(pthread_mutex_init(&(pool->mutex), NULL)) {
         // failed to initialize mutex
         return -1;
@@ -110,6 +113,7 @@ int lwtp_create(lwt_pool_t* pool, uint32_t num_threads) {
         return -1;
     }
 
+    pool->num_thread = num_threads;
     pool->count = 0;
 
     // start all the threads
@@ -121,4 +125,34 @@ int lwtp_create(lwt_pool_t* pool, uint32_t num_threads) {
     }
 
     return 0;
+}
+
+
+int lwtp_destroy(lwt_pool_t* pool) {
+    // kill all of our threads
+    // we give them a SIGINT to be nice
+
+    for(int_t i = 0; i < pool->num_threads; i++) {
+        if(pthread_kill(pool->threads[i], SIGINT)) {
+            return -1;
+        }
+    }
+
+    // destroy all mutexes and condition variables
+
+    if(pthread_mutex_destroy(&(pool->mutex))) {
+        return -1;
+    }
+
+    if(pthread_mutex_destroy(&(pool->cond_mutex))) {
+        return -1;
+    }
+
+    if(pthread_mutex_destroy(&(pool->block))) {
+        return -1;
+    }
+
+    if(pthread_cond_destroy(&(pool->cond))) {
+        return -1;
+    }
 }
