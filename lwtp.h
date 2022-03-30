@@ -23,6 +23,7 @@ int lwtp_create(lwt_pool_t* pool, int num_threads);
 int lwtp_destroy(lwt_pool_t*);
 
 // start a job on a thread
+// TODO add a blocking start, use condition variables to wake up parent
 int lwtp_start(lwt_pool_t* pool, job_handler_t job, void* arg);
 
 // wait for all jobs to complete

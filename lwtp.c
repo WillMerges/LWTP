@@ -9,6 +9,7 @@ typedef struct {
     pthread_t* threads;
     int num_threads;
     int count;
+    int ready;
     pthread_mutex_t mutex;
     pthread_cond_t cond;
     pthread_mutex_t cond_mutex;
@@ -27,12 +28,17 @@ void* _worker(void* pool_p) {
 
     while(1) {
         // wait for a job
-        // TODO problem - next thread may not wake up in time before another job is started
         pthread_mutex_lock(&(pool->cond_mutex));
+        pthread_mutex_lock(&(pool->mutex));
+        pool->ready++;
+        pthread_mutex_unlock(&(pool->mutex));
+
         pthread_cond_wait(&(pool->cond), &(pool->cond_mutex));
+        pthread_mutex_unlock(&(pool->cond_mutex));
 
         pthread_mutex_lock(&(pool->mutex));
 
+        pool->ready--;
         pool->count++;
 
         job = pool->job;
@@ -41,6 +47,12 @@ void* _worker(void* pool_p) {
         pool->job = NULL;
 
         pthread_mutex_unlock(&(pool->mutex));
+
+        if(job == NULL) {
+            // we were awoken, but someone beat us to take the job
+            // TODO make this not happen?
+            continue;
+        }
 
         // execute the job
         job(arg);
@@ -53,8 +65,9 @@ void* _worker(void* pool_p) {
 
 int lwtp_start(lwt_pool_t* pool, job_handler_t job, void* arg) {
     pthread_mutex_lock(&(pool->mutex));
-    if(pool->count == pool->num_threads) {
-        // no workers available
+    printf("ready: %i\n", pool->ready);
+    if(!pool->ready) {
+        // no workers available yet
         pthread_mutex_unlock(&(pool->mutex));
         return -1;
     }
@@ -106,6 +119,7 @@ int lwtp_create(lwt_pool_t* pool, int num_threads) {
     pool->count = 0;
     pool->job = NULL;
     pool->arg = NULL;
+    pool->ready = 0;
 
     // start all the threads
     for(uint32_t i = 0; i < num_threads; i++) {

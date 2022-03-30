@@ -11,10 +11,9 @@ lwt_pool_t pool;
 
 int main() {
 
-    lwtp_create(&pool, 1);
-    
-    int ret = lwtp_start(&pool, &test, NULL);
-    printf("%i\n", ret);
+    lwtp_create(&pool, 1000);
 
-    while(1) {};
+    while(1) {
+        lwtp_start(&pool, &test, NULL);
+    };
 }
