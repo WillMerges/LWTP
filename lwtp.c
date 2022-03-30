@@ -17,10 +17,10 @@ void* _worker(void* pool_p) {
     lwt_pool_t* pool = (lwt_pool_t*)pool_p;
     job_handler_t job;
 
-    while (1) {
+    while(1) {
         // wait for a job
         pthread_mutex_lock(&(pool->cond_mutex));
-        pthread_cond_wait(&(pool->cond),);
+        pthread_cond_wait(&(pool->cond), &(pool->cond_mutex));
 
         pthread_mutex_lock(&(pool->mutex));
 
@@ -47,6 +47,7 @@ int lwtp_start(lwt_pool_t* pool, job_handler_t job) {
     uint32_t curr = pool->count;
 
     pthread_mutex_unlock(&(pool->mutex));
+
     pthread_cond_signal(&(pool->cond));
 
     // TODO some way to know that the job was started
