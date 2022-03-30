@@ -3,14 +3,18 @@
 
 #define LWTP_C
 
+typedef void (*job_handler_t)(void*);
+
 typedef struct {
     pthread_t* threads;
     int num_threads;
-    _Atomic (int) count;
+    // _Atomic (int) count;
+    int count;
     pthread_mutex_t mutex;
     pthread_cond_t cond;
     pthread_mutex_t cond_mutex;
     job_handler_t job;
+    void* arg;
     pthread_mutex_t block;
 } lwt_pool_t;
 
@@ -21,6 +25,7 @@ typedef struct {
 void* _worker(void* pool_p) {
     lwt_pool_t* pool = (lwt_pool_t*)pool_p;
     job_handler_t job;
+    void* arg;
 
     while(1) {
         // keep this locked whenever a worker is waiting
@@ -35,6 +40,8 @@ void* _worker(void* pool_p) {
         pool->count++;
 
         job = pool->job;
+        arg = pool->arg;
+
         pool->job = NULL;
 
         pthread_mutex_unlock(&(pool->mutex));
@@ -43,7 +50,7 @@ void* _worker(void* pool_p) {
         pthread_mutex_unlock(&(pool->block));
 
         // execute the job
-        job();
+        job(arg);
 
         pthread_mutex_lock(&(pool->mutex));
         pool->count--;
@@ -51,10 +58,10 @@ void* _worker(void* pool_p) {
     }
 }
 
-int lwtp_start(lwt_pool_t* pool, job_handler_t job) {
+int lwtp_start(lwt_pool_t* pool, job_handler_t job, void* arg) {
     pthread_mutex_lock(&(pool->mutex));
     pool->job = job;
-
+    pool->arg = arg;
     pthread_mutex_unlock(&(pool->mutex));
 
     pthread_cond_signal(&(pool->cond));
@@ -96,29 +103,31 @@ int lwtp_create(lwt_pool_t* pool, int num_threads) {
         return -1;
     }
 
-    if(pthread_mutex_init(&(pool->cond), NULL)) {
+    if(pthread_mutex_init(&(pool->block), NULL)) {
         // failed to initialize mutex
         return -1;
     }
 
     if(pthread_cond_init(&(pool->cond), NULL)) {
-        // failed to initialize mutex
+        // failed to initialize condition variable
         return -1;
     }
 
-    pool->threads = malloc(sizeof(pthread_t) * num_threads);
+    pool->threads = (pthread_t*)malloc(sizeof(pthread_t) * num_threads);
 
     if(!pool->threads) {
         // malloc failed to allocate
         return -1;
     }
 
-    pool->num_thread = num_threads;
+    pool->num_threads = num_threads;
     pool->count = 0;
+    pool->job = NULL;
+    pool->arg = NULL;
 
     // start all the threads
     for(uint32_t i = 0; i < num_threads; i++) {
-        if(pthread_create(&(pool->threads[i]), NULL, &_worker, pool)) {
+        if(pthread_create(&(pool->threads[i]), NULL, _worker, pool)) {
             // failure creating thread
             return -1;
         }
@@ -132,7 +141,7 @@ int lwtp_destroy(lwt_pool_t* pool) {
     // kill all of our threads
     // we give them a SIGINT to be nice
 
-    for(int_t i = 0; i < pool->num_threads; i++) {
+    for(int i = 0; i < pool->num_threads; i++) {
         if(pthread_kill(pool->threads[i], SIGINT)) {
             return -1;
         }
