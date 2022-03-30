@@ -10,10 +10,24 @@
 #include <stdint.h>
 #include <pthread.h>
 
-#ifndef LWTP_C
+// #ifndef LWTP_C
+// typedef void (*job_handler_t)(void*);
+// typedef struct {} lwt_pool_t;
+// #endif
+
+
 typedef void (*job_handler_t)(void*);
-typedef struct {} lwt_pool_t;
-#endif
+
+typedef struct {
+    pthread_t* threads;
+    int num_threads;
+    int count;
+    int ready;
+    pthread_mutex_t mutex;
+    pthread_cond_t cond;
+    job_handler_t job;
+    void* arg;
+} lwt_pool_t;
 
 // create a thread pool with 'num_threads' threads
 // returns 0 on success, anything else on error

@@ -1,21 +1,6 @@
-#include <stdatomic.h>
 #include <signal.h>
 
-#define LWTP_C
-
-typedef void (*job_handler_t)(void*);
-
-typedef struct {
-    pthread_t* threads;
-    int num_threads;
-    int count;
-    int ready;
-    pthread_mutex_t mutex;
-    pthread_cond_t cond;
-    pthread_mutex_t cond_mutex;
-    job_handler_t job;
-    void* arg;
-} lwt_pool_t;
+// #define LWTP_C
 
 #include "lwtp.h"
 
@@ -28,15 +13,10 @@ void* _worker(void* pool_p) {
 
     while(1) {
         // wait for a job
-        pthread_mutex_lock(&(pool->cond_mutex));
-        pthread_mutex_lock(&(pool->mutex));
+        int ret = pthread_mutex_lock(&(pool->mutex));
         pool->ready++;
-        pthread_mutex_unlock(&(pool->mutex));
 
-        pthread_cond_wait(&(pool->cond), &(pool->cond_mutex));
-        pthread_mutex_unlock(&(pool->cond_mutex));
-
-        pthread_mutex_lock(&(pool->mutex));
+        pthread_cond_wait(&(pool->cond), &(pool->mutex));
 
         pool->ready--;
 
@@ -78,19 +58,35 @@ int lwtp_start(lwt_pool_t* pool, job_handler_t job, void* arg) {
 
     pthread_cond_signal(&(pool->cond));
 
+    int exit = 0;
+    while(!exit) {
+        pthread_mutex_lock(&(pool->mutex));
+        if(!pool->job) {
+            exit = 1;
+        }
+        pthread_mutex_unlock(&(pool->mutex));
+    }
+
     return 0;
 }
 
 void lwtp_wait(lwt_pool_t* pool) {
-    while(pool->count) {};
+    int c = 1;
+    while(c) {
+        pthread_mutex_lock(&(pool->mutex));
+        c = pool->count;
+        pthread_mutex_unlock(&(pool->mutex));
+    };
 }
 
 void lwtp_wait_count(lwt_pool_t* pool, int count) {
-    while(pool->count >= count) {};
+    int c = count + c;
+    while(c >= count) {
+        pthread_mutex_lock(&(pool->mutex));
+        c = pool->count;
+        pthread_mutex_unlock(&(pool->mutex));
+    };
 }
-
-pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
-pthread_mutex_t cond_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 int lwtp_create(lwt_pool_t* pool, int num_threads) {
     if(pthread_mutex_init(&(pool->mutex), NULL)) {
@@ -98,10 +94,10 @@ int lwtp_create(lwt_pool_t* pool, int num_threads) {
         return -1;
     }
 
-    if(pthread_mutex_init(&(pool->cond_mutex), NULL)) {
-        // failed to initialize mutex
-        return -1;
-    }
+    // if(pthread_mutex_init(&(pool->cond_mutex), NULL)) {
+    //     // failed to initialize mutex
+    //     return -1;
+    // }
 
     if(pthread_cond_init(&(pool->cond), NULL)) {
         // failed to initialize condition variable
@@ -149,9 +145,9 @@ int lwtp_destroy(lwt_pool_t* pool) {
         return -1;
     }
 
-    if(pthread_mutex_destroy(&(pool->cond_mutex))) {
-        return -1;
-    }
+    // if(pthread_mutex_destroy(&(pool->cond_mutex))) {
+    //     return -1;
+    // }
 
     if(pthread_cond_destroy(&(pool->cond))) {
         return -1;
