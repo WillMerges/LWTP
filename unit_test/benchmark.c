@@ -4,8 +4,8 @@
 #include <string.h>
 #include "lwtp.h"
 
-#define NUM_RUNS  10
-#define POOL_SIZE 1000000
+#define NUM_RUNS  100
+#define POOL_SIZE 2
 
 void test_func(void* t) {
     // do some floating point stuff
