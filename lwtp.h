@@ -10,23 +10,23 @@
 #include <stdint.h>
 #include <pthread.h>
 
-// #ifndef LWTP_C
-// typedef void (*job_handler_t)(void*);
-// typedef struct {} lwt_pool_t;
-// #endif
-
 
 typedef void (*job_handler_t)(void*);
+
+typedef struct {
+    job_handler_t func;
+    void* arg;
+} job_t;
 
 typedef struct {
     pthread_t* threads;
     int num_threads;
     int count;
-    int ready;
     pthread_mutex_t mutex;
     pthread_cond_t cond;
-    job_handler_t job;
-    void* arg;
+    int start;
+    int end;
+    job_t** jobs;
 } lwt_pool_t;
 
 // create a thread pool with 'num_threads' threads
@@ -38,7 +38,7 @@ int lwtp_destroy(lwt_pool_t*);
 
 // start a job on a thread
 // TODO add a blocking start, use condition variables to wake up parent
-int lwtp_start(lwt_pool_t* pool, job_handler_t job, void* arg);
+int lwtp_start(lwt_pool_t* pool, job_t* job);
 
 // wait for all jobs to complete
 // NOTE: blocking

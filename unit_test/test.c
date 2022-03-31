@@ -10,13 +10,14 @@ void test(void* t) {
 lwt_pool_t pool;
 
 int main() {
-    lwtp_create(&pool, 1000);
+    lwtp_create(&pool, 10);
+    job_t job = {&test, NULL};
+
 
     while(1) {
-        lwtp_start(&pool, &test, NULL);
-        lwtp_start(&pool, &test, NULL);
-        lwtp_start(&pool, &test, NULL);
-        lwtp_start(&pool, &test, NULL);
+        lwtp_start(&pool, &job);
+        lwtp_start(&pool, &job);
+        lwtp_start(&pool, &job);
         lwtp_wait(&pool);
         printf("\n");
         sleep(2);
